@@ -11,6 +11,9 @@ import { sseHandler } from "./events.js";
 import { authRoutes, userRoutes } from "./routes/users.js";
 import { restaurantRoutes, photoRoutes } from "./routes/restaurants.js";
 import { boardRoutes, boardAdminRoutes } from "./routes/board.js";
+import { adminRoutes } from "./routes/admin.js";
+import { startBackupJob } from "./backup.js";
+import { lanAddresses } from "./net-info.js";
 import { sessionRoutes, orderRoutes, balancesHandler } from "./routes/sessions.js";
 import { startCutoffJob } from "./cutoff.js";
 
@@ -58,6 +61,7 @@ app.use("/api/restaurants", restaurantRoutes);
 app.use("/api/photos", photoRoutes);
 app.use("/api/board", boardRoutes);
 app.use("/api/board-admin", boardAdminRoutes);
+app.use("/api/admin", adminRoutes);
 app.use("/api/sessions", sessionRoutes);
 app.use("/api/orders", orderRoutes);
 app.get("/api/balances", authRequired, balancesHandler);
@@ -91,9 +95,16 @@ app.use((err, req, res, next) => {
 });
 
 const server = app.listen(PORT, "0.0.0.0", () => {
-  console.log(`[boot] API on http://localhost:${PORT}  (LAN: http://<your-ip>:${PORT})`);
+  // Print the address people actually type, not a placeholder. On a machine
+  // with no screen this line ends up in the service log, and it is the fastest
+  // way to answer "what do I put in the phone".
+  for (const a of lanAddresses()) {
+    console.log(`[boot] http://${a.address}:${PORT}   (${a.iface})`);
+  }
+  console.log(`[boot] API on http://localhost:${PORT}`);
   console.log(`[boot] database: ${DB_PATH}`);
   startCutoffJob();
+  startBackupJob();
 });
 
 /*

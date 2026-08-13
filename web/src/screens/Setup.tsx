@@ -2,11 +2,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Plus, Pencil, Trash2, Crown, LogOut, AlertTriangle, KeyRound,
   ClipboardPaste, Upload, Download, ImagePlus, ZoomIn, ZoomOut,
-  Copy, MonitorPlay, RefreshCw, Bell
+  Copy, MonitorPlay, RefreshCw, Bell, ShieldCheck, HardDriveDownload
 } from "lucide-react";
 import { notifyState, askNotifyPermission, type NotifyState } from "../notify";
+import type { T } from "../i18n";
 import {
-  api, type Restaurant, type MenuItem, type ParsedRow, type ParsedMenu, type Photo
+  api, type Restaurant, type MenuItem, type ParsedRow, type ParsedMenu, type Photo,
+  type Health
 } from "../api";
 import type { Ctx } from "../App";
 import { Btn, Docket, Eyebrow, Field, Money, Sheet, inputCls } from "../ui";
@@ -111,6 +113,8 @@ export default function SetupScreen({ ctx, onSignOut }: { ctx: Ctx; onSignOut: (
         ) : null}
       </Docket>
 
+      {isAdmin ? <OpsPanel ctx={ctx} /> : null}
+
       <NotifyPanel ctx={ctx} />
 
       {isAdmin ? <BoardPanel ctx={ctx} /> : null}
@@ -139,6 +143,159 @@ export default function SetupScreen({ ctx, onSignOut }: { ctx: Ctx; onSignOut: (
       <PasswordSheet ctx={ctx} open={pwOpen} onClose={() => setPwOpen(false)} />
     </div>
   );
+}
+
+/*
+ * Backups and health.
+ *
+ * The backup line is deliberately the loudest thing on this screen when it goes
+ * wrong. Nobody here can restore from a cloud or ring a colleague, so "the last
+ * good copy is four days old" needs to be impossible to scroll past.
+ */
+function OpsPanel({ ctx }: { ctx: Ctx }) {
+  const { t, run, flash, lang } = ctx;
+  const [health, setHealth] = useState<Health | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [detail, setDetail] = useState(false);
+
+  const load = useCallback(async () => {
+    try { setHealth(await api.health()); } catch { /* panel just stays quiet */ }
+  }, []);
+
+  useEffect(() => {
+    void load();
+    // Slow refresh: this is a status panel, not a dashboard.
+    const id = setInterval(() => { void load(); }, 60_000);
+    return () => clearInterval(id);
+  }, [load]);
+
+  if (!health) return null;
+  const b = health.backup;
+
+  const ago = (iso: string | null) => {
+    if (!iso) return t.backupNever;
+    const mins = Math.floor((Date.now() - Date.parse(iso)) / 60000);
+    if (mins < 1) return t.justNow;
+    if (mins < 60) return `${mins} ${t.minutesAgo}`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs} ${t.hoursAgo}`;
+    return `${Math.floor(hrs / 24)} ${t.daysAgo}`;
+  };
+
+  const mb = (n: number | null) => (n == null ? "—" : `${(n / 1048576).toFixed(1)} MB`);
+  const gb = (n: number | null) => (n == null ? "—" : `${(n / 1073741824).toFixed(1)} GB`);
+
+  async function download() {
+    setBusy(true);
+    try {
+      const { name, blob } = await api.downloadBackup();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      a.click();
+      URL.revokeObjectURL(url);
+      flash(t.downloaded);
+      await load();
+    } catch {
+      flash(t.err_backup_failed);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Docket className={b.stale ? "border-red-400" : ""}>
+      <Eyebrow right={
+        <button type="button" onClick={() => setDetail((v) => !v)}
+          className="text-[11px] text-stone-400 hover:text-stone-700 underline">
+          {detail ? t.hideDetail : t.health}
+        </button>
+      }>{t.backup}</Eyebrow>
+
+      {/* the headline: when was the last good copy */}
+      <div className={`mx-4 mb-3 rounded px-3 py-2.5 border ${
+        b.stale ? "bg-red-50 border-red-300" : "bg-emerald-50 border-emerald-200"
+      }`}>
+        <div className="flex items-center gap-2">
+          {b.stale
+            ? <AlertTriangle size={15} className="text-red-600 shrink-0" />
+            : <ShieldCheck size={15} className="text-emerald-600 shrink-0" />}
+          <div className="min-w-0">
+            <div className={`text-sm font-semibold ${b.stale ? "text-red-900" : "text-emerald-900"}`}>
+              {b.never ? t.backupNever : `${t.lastBackup} ${ago(b.lastAt)}`}
+            </div>
+            <div className={`text-[11px] ${b.stale ? "text-red-700" : "text-emerald-700"}`}>
+              {b.never
+                ? t.backupNeverHint
+                : `${b.count} ${t.copiesKept} · ${t.every} ${b.intervalHours}${t.hoursShort}`}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="px-4 pb-4 flex gap-2 flex-wrap">
+        <Btn size="sm" variant="primary" onClick={download} disabled={busy}>
+          <Download size={13} />{busy ? t.working : t.downloadDb}
+        </Btn>
+        <Btn size="sm" onClick={async () => {
+          const r = await run(() => api.runBackup());
+          if (r) { flash(t.backupMade); await load(); }
+        }}><HardDriveDownload size={13} />{t.backupNow}</Btn>
+      </div>
+
+      {detail ? (
+        <>
+          <div className="border-t border-dashed border-stone-300 mx-4" />
+          <dl className="px-4 py-3 grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px]">
+            <Stat label={t.hAddress} value={
+              health.addresses.length
+                ? health.addresses.map((a) => `${a.address} (${a.iface})`).join(" · ")
+                : "—"
+            } wide mono />
+            <Stat label={t.hUptime} value={formatUptime(health.uptimeSeconds, t)} />
+            <Stat label={t.hClients} value={`${health.clients.total}${health.clients.board ? ` (${health.clients.board} ${t.hBoard})` : ""}`} />
+            <Stat label={t.hDb} value={mb(health.database.bytes)} mono />
+            <Stat label={t.hDisk} value={
+              health.disk.free == null ? "—" : `${gb(health.disk.free)} ${t.hFree}`
+            } mono />
+            <Stat label={t.hIntegrity}
+              value={health.database.integrity === "ok" ? t.hOk : health.database.integrity}
+              bad={health.database.integrity !== "ok"} />
+            <Stat label={t.hNode} value={health.node} mono />
+            <Stat label={t.hPlatform} value={health.platform} mono wide />
+          </dl>
+          <p className="px-4 pb-3 text-[11px] text-stone-400 leading-relaxed">
+            {lang === "ar"
+              ? "النسخة بتنعمل بـ VACUUM INTO — نسخة متماسكة حتى والسيرفر شغال. لا تنسخ ملف app.db يدويًا."
+              : "Snapshots use VACUUM INTO — consistent even while the server is running. Do not copy app.db by hand."}
+          </p>
+        </>
+      ) : null}
+    </Docket>
+  );
+}
+
+function Stat({ label, value, mono, wide, bad }: {
+  label: string; value: string; mono?: boolean; wide?: boolean; bad?: boolean;
+}) {
+  return (
+    <div className={wide ? "col-span-2" : ""}>
+      <dt className="uppercase tracking-widest text-stone-400">{label}</dt>
+      <dd className={`${mono ? "font-mono" : ""} ${bad ? "text-red-600 font-semibold" : "text-stone-700"} break-all`} dir={mono ? "ltr" : undefined}>
+        {value}
+      </dd>
+    </div>
+  );
+}
+
+function formatUptime(seconds: number, t: T) {
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (d > 0) return `${d}${t.daysShort} ${h}${t.hoursShort}`;
+  if (h > 0) return `${h}${t.hoursShort} ${m}${t.minutesShort}`;
+  return `${m}${t.minutesShort}`;
 }
 
 /*

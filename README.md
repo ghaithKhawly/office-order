@@ -330,17 +330,48 @@ All routes need `Authorization: Bearer <token>` except `/api/auth/login` and `/a
 
 ## Operations
 
-**Backup** is one file copy:
+### Backups
 
-```bash
-cp server/data/app.db ~/backups/app-$(date +%F).db
-```
+The app backs itself up. Every 6 hours (configurable) it writes a snapshot to
+`server/data/backups/` and keeps the last 14. **Setup** shows the age of the
+last good one and turns red when it goes stale. There is also a **Download
+database** button, which takes a fresh snapshot on the spot.
 
-Do this on a cron. WAL mode means you should copy `app.db-wal` too, or stop the
-server first for a guaranteed-clean snapshot.
+> **Never back up by copying `app.db`.** The database runs in WAL mode, so
+> recent transactions live in `app.db-wal`. A copy of `app.db` alone is not just
+> stale — it can be **structurally unusable**. Measured on this build: with
+> ~1 MB sitting in the WAL, a plain file copy opened with *"no such table:
+> restaurants"*, while the app's own snapshot was complete and valid.
+>
+> An earlier version of this README recommended exactly that copy. It was
+> wrong, and it would only have failed on the day someone needed to restore.
+
+Snapshots use `VACUUM INTO`, which asks SQLite for a consistent, compacted copy
+while it holds the right locks. To copy by hand, stop the server first.
+
+**Get copies off the machine.** A backup that only exists on the disk that died
+is not a backup. Once a week, download one and put it on a USB stick.
+
+**Restoring:** `deploy\restore-backup.bat` — with no arguments it lists the
+snapshots; pass one to restore it. See
+[DEPLOY-WINDOWS.md](DEPLOY-WINDOWS.md#restoring).
+
+### Health
+
+**Setup → Server health** reports uptime, database size and integrity, free
+disk, last backup, connected clients, Node version, and every LAN address the
+machine has. On a box with no internet and no monitoring, the app has to be able
+to say what is wrong itself.
 
 **Reset everything:** `npm run reset-db` (deletes the database; next start
-recreates it with the bootstrap admin).
+recreates it with the bootstrap admin). It leaves `backups/` alone.
+
+**Deploying to the office machine:** see **[DEPLOY-WINDOWS.md](DEPLOY-WINDOWS.md)**.
+Short version: build on a Windows x64 machine with internet on the same Node
+major version, copy the whole folder including `node_modules`, give the machine
+a static IP, run `deploy\open-firewall.bat` and `deploy\install-service.bat` as
+administrator. Do not try to build a single `.exe` — `better-sqlite3` is a
+native addon and that path is a dead end.
 
 **Move to Postgres later:** the schema is plain SQL and the money math lives in
 `server/src/calc.js`, independent of the driver. Swapping `better-sqlite3` for

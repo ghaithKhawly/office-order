@@ -1,5 +1,5 @@
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { X, Timer } from "lucide-react";
+import { X, Timer, Printer } from "lucide-react";
 import type { OrderStatus } from "./api";
 import type { T } from "./i18n";
 
@@ -64,17 +64,19 @@ export function Sheet({ open, onClose, title, children, footer, size = "md" }: {
   const width = size === "wide" ? "sm:max-w-5xl" : "sm:max-w-lg";
   const height = size === "wide" ? "h-[94vh] sm:h-[90vh]" : "max-h-[92vh]";
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-      <div className="absolute inset-0 bg-stone-900/50" onClick={onClose} />
-      <div className={`relative w-full ${width} bg-stone-50 rounded-t-xl sm:rounded-xl ${height} flex flex-col shadow-xl`}>
-        <div className="flex items-center justify-between px-4 py-3 border-b border-stone-200 shrink-0">
+    /* print-shell: see index.css — printing has to escape the modal's fixed,
+       centred, scroll-clipped layout or long sheets come out truncated. */
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center print-shell">
+      <div className="absolute inset-0 bg-stone-900/50 no-print" onClick={onClose} />
+      <div className={`relative w-full ${width} bg-stone-50 rounded-t-xl sm:rounded-xl ${height} flex flex-col shadow-xl print-shell`}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-stone-200 shrink-0 no-print">
           <h3 className="text-sm font-semibold text-stone-900">{title}</h3>
           <button type="button" onClick={onClose} className="p-1.5 rounded hover:bg-stone-200 text-stone-500">
             <X size={18} />
           </button>
         </div>
-        <div className="overflow-y-auto px-4 py-4 grow">{children}</div>
-        {footer ? <div className="px-4 py-3 border-t border-stone-200 shrink-0">{footer}</div> : null}
+        <div className="overflow-y-auto px-4 py-4 grow print-shell">{children}</div>
+        {footer ? <div className="px-4 py-3 border-t border-stone-200 shrink-0 no-print">{footer}</div> : null}
       </div>
     </div>
   );
@@ -179,7 +181,12 @@ export function Countdown({ target, offsetMs = 0, onExpire, className = "" }: {
   );
 }
 
-export function CopyBlock({ text, t, flash }: { text: string; t: T; flash: (s: string) => void }) {
+export function CopyBlock({ text, t, flash, printable }: {
+  text: string; t: T; flash: (s: string) => void;
+  /* Marks this block as the thing to print — see the @media print rules in
+     index.css. Used for the kitchen sheet, which goes to a LAN printer. */
+  printable?: boolean;
+}) {
   async function copy() {
     try {
       await navigator.clipboard.writeText(text);
@@ -189,11 +196,18 @@ export function CopyBlock({ text, t, flash }: { text: string; t: T; flash: (s: s
     }
   }
   return (
-    <>
+    <div className={printable ? "print-sheet" : undefined}>
       <pre dir="auto" className="bg-stone-900 text-stone-100 text-xs leading-relaxed rounded p-3 overflow-x-auto whitespace-pre-wrap font-mono select-all mb-3">
         {text}
       </pre>
-      <Btn variant="primary" size="lg" onClick={copy}>{t.copy}</Btn>
-    </>
+      <div className="flex gap-2 no-print">
+        <Btn variant="primary" size="lg" onClick={copy}>{t.copy}</Btn>
+        {printable ? (
+          <Btn size="lg" onClick={() => window.print()}>
+            <Printer size={15} />{t.print}
+          </Btn>
+        ) : null}
+      </div>
+    </div>
   );
 }

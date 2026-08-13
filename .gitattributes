@@ -1,0 +1,28 @@
+# Normalise text files to LF in the repository.
+* text=auto
+
+#
+# Windows batch files MUST have CRLF line endings, on disk, always.
+#
+# cmd.exe's parser does not tolerate bare LF: it consumes the first characters
+# of each line, so `setlocal` is read as `etlocal` and `REM` as `M`, and the
+# script fails with a spray of "is not recognized as an internal or external
+# command". It looks like a corrupted download rather than a line-ending
+# problem, on a machine with no internet to search from.
+#
+# This is not theoretical — it happened while building these scripts.
+#
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Shell scripts must keep LF even when checked out on Windows.
+*.sh text eol=lf
+
+# Binary assets: never touch these.
+*.woff2 binary
+*.png binary
+*.jpg binary
+*.webp binary
+*.gif binary
+*.db binary

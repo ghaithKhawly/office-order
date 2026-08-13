@@ -87,3 +87,69 @@ input, select, textarea { font-family: inherit; }
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+/*
+ * Printing the kitchen sheet.
+ *
+ * This goes to a LAN printer and then to a kitchen, so it has to survive being
+ * read at arm's length on a counter: no navigation, no buttons, no dark
+ * backgrounds eating toner, and the quantities big enough to check off while
+ * unpacking bags.
+ *
+ * Everything is hidden with visibility rather than display so the printed
+ * element keeps its place in the layout; .print-sheet is then lifted to the top
+ * of the page.
+ */
+@media print {
+  @page { margin: 14mm; }
+
+  html, body { background: #fff !important; height: auto; }
+
+  body * { visibility: hidden; }
+  .print-sheet, .print-sheet * { visibility: visible; }
+
+  /*
+   * The kitchen sheet lives inside a modal: fixed, vertically centred, and
+   * scroll-clipped. Printed as-is, a long order gets cut off at whatever
+   * happened to be visible on screen — the kitchen gets page one and nobody
+   * notices until the food is short. Flatten the shell so the sheet is a
+   * normal block that can paginate.
+   */
+  .print-shell {
+    position: static !important;
+    display: block !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    background: #fff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .print-sheet {
+    position: static;
+    width: 100%;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* Buttons, close icons and backdrops never print. */
+  .no-print { display: none !important; }
+
+  /* The sheet itself: black on white, large mono, generous leading. */
+  .print-sheet pre {
+    background: #fff !important;
+    color: #000 !important;
+    font-size: 15pt !important;
+    line-height: 1.65 !important;
+    padding: 0 !important;
+    white-space: pre-wrap;
+    overflow: visible !important;
+    border: 0 !important;
+  }
+
+  /* Let the browser break long orders across pages sensibly. */
+  .print-sheet pre { page-break-inside: auto; }
+}

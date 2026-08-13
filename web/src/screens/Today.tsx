@@ -190,7 +190,7 @@ export default function Today({ ctx }: { ctx: Ctx }) {
       <PastSessions ctx={ctx} />
 
       <Sheet open={sheetText !== null} onClose={() => setSheetText(null)} title={t.kitchenSheet}>
-        {sheetText !== null ? <CopyBlock text={sheetText} t={t} flash={flash} /> : null}
+        {sheetText !== null ? <CopyBlock text={sheetText} t={t} flash={flash} printable /> : null}
       </Sheet>
 
       <CutoffSheet ctx={ctx} session={session} open={cutoffOpen} onClose={() => setCutoffOpen(false)} />

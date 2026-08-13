@@ -74,6 +74,29 @@ export interface Photo {
   mime: string; bytes: number; createdAt: string;
 }
 
+/* --- ops: health and backups --- */
+
+export interface BackupStatus {
+  lastAt: string | null; lastFile: string | null; lastBytes: number;
+  count: number; keep: number; intervalHours: number;
+  ageHours: number | null; stale: boolean; never: boolean;
+}
+export interface BackupFile { file: string; bytes: number; at: string }
+export interface Health {
+  ok: boolean; now: string; uptimeSeconds: number; node: string;
+  platform: string; pid: number; port: number;
+  addresses: { address: string; iface: string; internal: boolean }[];
+  memoryMB: number;
+  database: {
+    path: string; bytes: number; mainBytes: number; walBytes: number;
+    journalMode: string; integrity: string; schemaVersion: number;
+  };
+  disk: { total: number | null; free: number | null; usedPct: number | null };
+  backup: BackupStatus;
+  clients: { total: number; board: number };
+  counts: { users: number; restaurants: number; sessions: number; orders: number; auditRows: number };
+}
+
 const TOKEN_KEY = "oo:token";
 export const getToken = () => localStorage.getItem(TOKEN_KEY);
 export const setToken = (t: string | null) =>
@@ -192,6 +215,21 @@ export const api = {
     req<Session>("PATCH", `/orders/${orderId}/decision`, { status, reason }),
   setPaid: (orderId: string, paid: boolean) =>
     req<Session>("PATCH", `/orders/${orderId}/paid`, { paid }),
+
+  health: () => req<Health>("GET", "/admin/health"),
+  backups: () => req<{ status: BackupStatus; files: BackupFile[]; dir: string }>("GET", "/admin/backups"),
+  runBackup: () => req<{ file: string; bytes: number; pruned: string[] }>("POST", "/admin/backups"),
+  /* The download needs an auth header, so it cannot be a plain link — fetch the
+     bytes and hand the browser a blob. */
+  downloadBackup: async (): Promise<{ name: string; blob: Blob }> => {
+    const res = await fetch("/api/admin/backups/download", {
+      headers: getToken() ? { authorization: `Bearer ${getToken()}` } : {}
+    });
+    if (!res.ok) throw new ApiError(res.status, "backup_failed");
+    const cd = res.headers.get("content-disposition") || "";
+    const name = /filename="([^"]+)"/.exec(cd)?.[1] || "app.db";
+    return { name, blob: await res.blob() };
+  },
 
   boardInfo: () => req<{
     token: string; boardPath: string; joinUrl: string; joinQr: string;
