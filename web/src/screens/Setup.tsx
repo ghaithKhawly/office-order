@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Plus, Pencil, Trash2, Crown, LogOut, AlertTriangle, KeyRound,
-  ClipboardPaste, Upload, Download, ImagePlus, ZoomIn, ZoomOut
+  ClipboardPaste, Upload, Download, ImagePlus, ZoomIn, ZoomOut,
+  Copy, MonitorPlay, RefreshCw
 } from "lucide-react";
 import {
   api, type Restaurant, type MenuItem, type ParsedRow, type ParsedMenu, type Photo
@@ -109,6 +110,8 @@ export default function SetupScreen({ ctx, onSignOut }: { ctx: Ctx; onSignOut: (
         ) : null}
       </Docket>
 
+      {isAdmin ? <BoardPanel ctx={ctx} /> : null}
+
       {isAdmin ? (
         <Docket className="px-4 py-3">
           <Field label={t.currency}>
@@ -132,6 +135,81 @@ export default function SetupScreen({ ctx, onSignOut }: { ctx: Ctx; onSignOut: (
 
       <PasswordSheet ctx={ctx} open={pwOpen} onClose={() => setPwOpen(false)} />
     </div>
+  );
+}
+
+/*
+ * The wall display link and the join QR code.
+ *
+ * The QR is generated on the server from its own LAN address, so it always
+ * points somewhere a phone on this network can actually reach. Print it and
+ * tape it by the door — that is the whole onboarding flow for a new colleague.
+ */
+function BoardPanel({ ctx }: { ctx: Ctx }) {
+  const { t, run, flash } = ctx;
+  const [info, setInfo] = useState<{ token: string; boardPath: string; joinUrl: string; joinQr: string } | null>(null);
+  const [confirmRotate, setConfirmRotate] = useState(false);
+
+  useEffect(() => { api.boardInfo().then(setInfo).catch(() => {}); }, []);
+
+  if (!info) return null;
+  const boardUrl = info.joinUrl + info.boardPath;
+
+  return (
+    <Docket>
+      <Eyebrow>{t.board}</Eyebrow>
+      <div className="px-4 pb-4">
+        <p className="text-[11px] text-stone-400 mb-3 leading-relaxed">{t.boardHint}</p>
+
+        <div className="grid sm:grid-cols-[auto_minmax(0,1fr)] gap-4 items-start">
+          {/* The SVG comes from the server; it is our own QR of our own address. */}
+          <div className="w-32 h-32 bg-white rounded border border-stone-200 p-1.5 shrink-0"
+            dangerouslySetInnerHTML={{ __html: info.joinQr }} />
+
+          <div className="min-w-0">
+            <span className="block text-[10px] uppercase tracking-widest text-stone-400 mb-1">{t.joinUrl}</span>
+            <code dir="ltr" className="block text-xs font-mono bg-stone-100 rounded px-2 py-1.5 mb-3 select-all break-all">
+              {info.joinUrl}
+            </code>
+
+            <span className="block text-[10px] uppercase tracking-widest text-stone-400 mb-1">{t.boardLink}</span>
+            <code dir="ltr" className="block text-[10px] font-mono bg-stone-100 rounded px-2 py-1.5 mb-2 select-all break-all">
+              {boardUrl}
+            </code>
+
+            <div className="flex gap-2 flex-wrap">
+              <Btn size="sm" onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(boardUrl);
+                  flash(t.copied);
+                } catch { flash(t.copyManual); }
+              }}><Copy size={13} />{t.copy}</Btn>
+              <Btn size="sm" onClick={() => window.open(info.boardPath, "_blank")}>
+                <MonitorPlay size={13} />{t.openBoard}
+              </Btn>
+              <Btn size="sm" variant="bad" onClick={() => setConfirmRotate(true)}>
+                <RefreshCw size={13} />{t.rotateToken}
+              </Btn>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <Sheet open={confirmRotate} onClose={() => setConfirmRotate(false)} title={t.rotateToken}
+        footer={
+          <Btn variant="primary" size="lg" onClick={async () => {
+            const r = await run(() => api.rotateBoardToken());
+            if (r) {
+              const fresh = await api.boardInfo();
+              setInfo(fresh);
+              setConfirmRotate(false);
+              flash(t.rotated);
+            }
+          }}>{t.confirm}</Btn>
+        }>
+        <p className="text-sm text-stone-600">{t.rotateWarn}</p>
+      </Sheet>
+    </Docket>
   );
 }
 

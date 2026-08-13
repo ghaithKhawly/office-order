@@ -10,6 +10,7 @@ import { hash, authRequired } from "./auth.js";
 import { sseHandler } from "./events.js";
 import { authRoutes, userRoutes } from "./routes/users.js";
 import { restaurantRoutes, photoRoutes } from "./routes/restaurants.js";
+import { boardRoutes, boardAdminRoutes } from "./routes/board.js";
 import { sessionRoutes, orderRoutes, balancesHandler } from "./routes/sessions.js";
 import { startCutoffJob } from "./cutoff.js";
 
@@ -47,12 +48,16 @@ app.put("/api/settings", authRequired, (req, res) => {
   res.json({ currency: setting("currency") });
 });
 
-app.get("/api/stream", sseHandler);
+// Wrapped, not passed directly: Express would hand `next` to the options
+// parameter, which happens to work today and would break the moment it doesn't.
+app.get("/api/stream", (req, res) => sseHandler(req, res));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/restaurants", restaurantRoutes);
 app.use("/api/photos", photoRoutes);
+app.use("/api/board", boardRoutes);
+app.use("/api/board-admin", boardAdminRoutes);
 app.use("/api/sessions", sessionRoutes);
 app.use("/api/orders", orderRoutes);
 app.get("/api/balances", authRequired, balancesHandler);

@@ -137,6 +137,37 @@ back with its number and a reason.
 
 ---
 
+## The wall display
+
+Open `/board?token=…` on a screen in the office. Read-only, no login, designed
+to be read from across a room. Because there is no Web Push on this network
+(see the air-gap rules below), **this screen is the notification system.**
+
+Get the link, and a QR code for joining, from **Setup → Wall display**. The QR
+encodes the server's own LAN address, so it points somewhere a phone on this
+network can actually reach — print it and tape it by the door.
+
+It shows the restaurant, a live countdown, who has ordered, **who has not yet
+ordered**, the running total, and progress toward the restaurant's minimum.
+It never shows what any individual owes: it hangs in a room that visitors walk
+through, and "who still needs to order" is useful where "Maha owes 47,000" is
+nobody else's business.
+
+**The token is a lock on a low-value door, not a security boundary.** It stops
+the link being guessed or wandering onto a personal phone; it is not protecting
+secrets, because the board deliberately holds none. Rotate it from Setup if it
+leaks — the old link stops working immediately.
+
+**Built to be left on.** The board holds an SSE stream open and falls back to
+polling every 10s if it drops, retrying the stream with a backoff that tops out
+at 30s so a rebooting server isn't hammered. Verified: it survives the server
+being killed for six seconds and reconnects on its own without reloading the
+page. If no session is running it says so rather than showing a stale one, and
+it reloads itself once a day in the small hours — but only when no session is
+running, so it can never blank mid-lunch.
+
+---
+
 ## Air-gap rules
 
 The deployment target is a Windows box on a closed LAN. These are not style
@@ -250,6 +281,14 @@ All routes need `Authorization: Bearer <token>` except `/api/auth/login` and `/a
 | GET | `/api/sessions/:id/kitchen-sheet` | any | Aggregated text for the phone call |
 | GET | `/api/balances` | any | Running debts |
 | GET | `/api/stream` | any | SSE; server pings on every write |
+| POST | `/api/restaurants/parse-menu` | admin | Preview pasted menu text; writes nothing |
+| GET | `/api/restaurants/:id/export` | any | Menu as versioned JSON |
+| POST | `/api/restaurants/import` | admin | Create/replace from JSON (`dryRun` to check first) |
+| GET/POST | `/api/restaurants/:id/photos` | any / admin | List, upload menu photos |
+| GET/DELETE | `/api/photos/:id` | any / admin | Fetch or remove a photo |
+| GET | `/api/board?token=` | token | Wall display payload (no per-person money) |
+| GET | `/api/board/stream?token=` | token | Wall display SSE |
+| GET/POST | `/api/board-admin[/rotate]` | admin | Board link, join QR, rotate token |
 
 ---
 

@@ -193,6 +193,11 @@ export const api = {
   setPaid: (orderId: string, paid: boolean) =>
     req<Session>("PATCH", `/orders/${orderId}/paid`, { paid }),
 
+  boardInfo: () => req<{
+    token: string; boardPath: string; joinUrl: string; joinQr: string;
+  }>("GET", "/board-admin"),
+  rotateBoardToken: () => req<{ token: string; boardPath: string }>("POST", "/board-admin/rotate"),
+
   kitchenSheet: (sessionId: string) =>
     req<{ text: string }>("GET", `/sessions/${sessionId}/kitchen-sheet`),
   balances: () => req<Balance[]>("GET", "/balances")
