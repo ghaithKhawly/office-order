@@ -204,6 +204,40 @@ running, so it can never blank mid-lunch.
 
 ---
 
+## Tests
+
+```bash
+npm test
+```
+
+82 tests on Node's built-in runner — no test dependency to install, which
+matters on a machine that gets its packages once and then never again.
+
+| Suite | What it holds down |
+|---|---|
+| `calc.test.js` | The money. ~31,000 randomised cases asserting `sum(shares) === delivery_fee` **exactly**, in both split modes, plus zero fee, one participant, zero participants, and a fee smaller than the rounding step. |
+| `menu-parse.test.js` | The parser, as a fixture table of real pasted mess: every separator form, Arabic-Indic and Persian digits, the Arabic thousands mark, category headers vs unpriced items, and prices it must flag rather than guess at. |
+| `cutoff.test.js` | Auto-lock, and the timestamp format the whole feature depends on. |
+| `api.test.js` | Integration against a real server: price tampering, admin-only routes, locked sessions, invalid transitions, and that a menu edit never moves a past session's totals. |
+
+The API tests spawn `server/src/index.js` as a child process against a
+throwaway `DATA_DIR` on a free port. That exercises the real boot path —
+migrations, bootstrap admin, scheduled jobs, static serving — and needed no
+production code rearranged to be testable. They can run while a dev server is
+up.
+
+**These tests were checked against deliberate sabotage**, not just observed to
+pass: breaking the remainder distribution in `allocate()` makes the property
+test fail with shares summing short, and making the order route trust a
+client-sent price makes the tampering test fail with a snapshot of `1` instead
+of `15000`.
+
+The parser suite found a real bug on first run: the currency stripper matched
+`LS` case-insensitively at the end of any line, so `Grills` was silently
+truncated to `Gril`. Fixed, with a regression case.
+
+---
+
 ## Air-gap rules
 
 The deployment target is a Windows box on a closed LAN. These are not style

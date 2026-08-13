@@ -15,7 +15,7 @@
     "build": "npm run build --prefix web && node scripts/check-offline.mjs",
     "check:offline": "npm run build",
     "start": "npm start --prefix server",
-    "test": "node --test server/test/",
+    "test": "npm test --prefix server",
     "reset-db": "node server/src/reset.js"
   },
   "devDependencies": {

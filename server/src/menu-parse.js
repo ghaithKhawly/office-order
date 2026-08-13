@@ -45,9 +45,17 @@ export function normalizeDigits(input) {
 const PRICE_TAIL =
   /(\d{1,3}(?:[,٬، '’. ]\d{3})+|\d+)\s*$/;
 
-/* Currency written after the number. Stripped before looking for the price. */
+/*
+ * Currency written after the number, stripped before looking for the price.
+ *
+ * The leading (^|[\s\d]) is load-bearing. Without it the Latin abbreviations
+ * match the tail of ordinary words — "Grills" ends in "ls", "Crisp" ends in
+ * "sp" — and the parser quietly truncates item names to "Gril" and "Cri". A
+ * currency mark only counts when it follows a digit or a space, never when it
+ * is glued to letters. The captured character is put back.
+ */
 const CURRENCY_TAIL =
-  /\s*(?:ل\.?\s?س\.?|ليرة(?:\s+سورية)?|س\.?\s?ل\.?|SYP|SP|LS|£)\s*$/i;
+  /(^|[\s\d])\s*(?:ل\.?\s?س\.?|ليرة(?:\s+سورية)?|س\.?\s?ل\.?|SYP|SP|LS|£)\s*$/i;
 
 /* Characters that signal "name over here, price over there". */
 const SEPARATOR_CHARS = /[—–\-_:\t….،,]|\s{2,}/;
@@ -98,7 +106,7 @@ function classifyLine(rawLine) {
   }
 
   let working = trimmed.replace(LEADING_MARKER, "").trim();
-  const withoutCurrency = working.replace(CURRENCY_TAIL, "");
+  const withoutCurrency = working.replace(CURRENCY_TAIL, "$1");
   const hadCurrency = withoutCurrency !== working;
   working = withoutCurrency;
 
