@@ -54,14 +54,19 @@ export function Field({ label, children }: { label: string; children: ReactNode 
   );
 }
 
-export function Sheet({ open, onClose, title, children, footer }: {
-  open: boolean; onClose: () => void; title: string; children: ReactNode; footer?: ReactNode;
+export function Sheet({ open, onClose, title, children, footer, size = "md" }: {
+  open: boolean; onClose: () => void; title: string; children: ReactNode;
+  footer?: ReactNode;
+  /* "wide" is for the menu editor, which puts the photo beside the grid. */
+  size?: "md" | "wide";
 }) {
   if (!open) return null;
+  const width = size === "wide" ? "sm:max-w-5xl" : "sm:max-w-lg";
+  const height = size === "wide" ? "h-[94vh] sm:h-[90vh]" : "max-h-[92vh]";
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-stone-900/50" onClick={onClose} />
-      <div className="relative w-full sm:max-w-lg bg-stone-50 rounded-t-xl sm:rounded-xl max-h-[92vh] flex flex-col shadow-xl">
+      <div className={`relative w-full ${width} bg-stone-50 rounded-t-xl sm:rounded-xl ${height} flex flex-col shadow-xl`}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-stone-200 shrink-0">
           <h3 className="text-sm font-semibold text-stone-900">{title}</h3>
           <button type="button" onClick={onClose} className="p-1.5 rounded hover:bg-stone-200 text-stone-500">

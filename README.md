@@ -86,6 +86,57 @@ people can settle weekly instead of daily.
 
 ---
 
+## Getting a menu in
+
+Typing a 40-item Arabic menu by hand is the most tedious part of running this
+app, so there are four ways in. All of them land in the same editor, and
+nothing is written until you press save.
+
+**Paste it.** *Setup → edit a restaurant → Paste a menu.* Drop in raw text and
+you get a preview table to correct before committing. The parser
+(`server/src/menu-parse.js`, pure, no I/O) handles in a single paste:
+
+- `اسم الصنف — 15000` and `اسم الصنف - 15000`
+- `اسم الصنف .......... 15,000` (dot leaders, comma or `٬` grouping)
+- tab- and comma-separated pairs, and `15.000` European grouping
+- Arabic-Indic `٥٠٠٠` and Persian `۵۰۰۰` digits
+- a line with no price → an item at 0, flagged **no price**
+- a line with no digits and no separator → a **category header** for the rows
+  beneath it
+
+Two judgement calls it will not make for you. A price of `15` where everything
+else is in the thousands is flagged **price looks too low** with a one-tap
+suggestion of `15000` — it is never applied silently, because a 500 SYP glass
+of tea is also a real price. And a bare line is only treated as a heading if a
+priced item follows it directly; a stray name after a blank line is an item
+somebody forgot to price. Both are editable in the preview.
+
+**Type it.** The grid is built for the keyboard: **Tab** moves name → price →
+category → next row, **Shift+Tab** goes back, **Enter** makes a new row and
+focuses it (inheriting the category above), **Ctrl+D** copies the row above,
+**Ctrl+Delete** removes a row. The availability toggle and the delete button
+are deliberately outside the tab order — with them in it, 40 items costs 120
+extra keystrokes past controls nobody uses while transcribing.
+
+**Photograph it.** Attach the paper menu as a photo and it sits beside the grid
+while you type, zoomable, so you are never looking away from the screen. There
+is no OCR, on purpose: Arabic menu photos with stylised fonts and a
+right-aligned price column break Tesseract badly enough that you correct half
+the rows anyway, and the model is 20+ MB to vendor onto an offline machine.
+
+Photos are capped at 12 MB, whitelisted to JPEG/PNG/WEBP/GIF **by their magic
+bytes rather than the Content-Type header**, stored under a filename the server
+generates, and served through an authenticated route — never a static
+directory.
+
+**Import a file.** `Import` / `Export` move menus as versioned JSON
+(`office-order.menu` v1). This is also the menu backup and the way a menu
+transcribed on another machine gets in. Validation is per-row: one bad line in
+a 40-item file does not cost you the other 39, and every rejected row comes
+back with its number and a reason.
+
+---
+
 ## Air-gap rules
 
 The deployment target is a Windows box on a closed LAN. These are not style
@@ -166,6 +217,11 @@ All routes need `Authorization: Bearer <token>` except `/api/auth/login` and `/a
 | POST/PATCH/DELETE | `/api/restaurants[/:id]` | admin | CRUD (delete is a soft archive) |
 | PUT | `/api/restaurants/:id/menu` | admin | Replace whole menu atomically |
 | PATCH | `/api/restaurants/:id/menu/adjust` | admin | Bulk `{percent}` price change |
+| GET | `/api/restaurants/:id/export` | any | Menu as a JSON file |
+| POST | `/api/restaurants/import` | admin | Create/replace from JSON (`dryRun` to preview) |
+| POST | `/api/restaurants/parse-menu` | admin | Parse pasted text — writes nothing |
+| GET/POST | `/api/restaurants/:id/photos` | any / admin | List or upload menu photos |
+| GET/DELETE | `/api/photos/:id` | any / admin | Fetch or delete a photo |
 | GET | `/api/sessions/active` | any | Current session + computed totals |
 | GET | `/api/sessions?limit=` | any | History |
 | POST | `/api/sessions` | admin | Start one (409 if one is running) |

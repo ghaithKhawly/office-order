@@ -39,6 +39,37 @@ export interface Session {
 }
 export interface Balance { userId: string; name: string; balance: number }
 
+/* --- menu entry (paste parser, import/export, photos) --- */
+
+export type ParseFlag = "no_price" | "implausible_price" | "duplicate";
+
+export interface ParsedRow {
+  line: number; raw: string; name: string; price: number;
+  category: string; kind: "item"; flags: ParseFlag[];
+  suggestedPrice: number | null;
+}
+export interface ParsedMenu {
+  rows: ParsedRow[];
+  headers: { line: number; name: string }[];
+  skipped: { line: number; raw: string; reason: string }[];
+  stats: { items: number; categories: number; flagged: number; medianPrice: number | null };
+}
+export interface MenuFile {
+  format: string; version: number; exportedAt: string;
+  restaurant: { name: string; phone: string; deliveryFee: number; minOrder: number };
+  items: { name: string; price: number; category: string; available: boolean }[];
+}
+export interface ImportResult {
+  created?: boolean; dryRun?: boolean; wouldCreate?: boolean;
+  imported: number; replacing?: number; restaurantName?: string;
+  rejected: { row: number; name: string; error: string }[];
+  restaurant?: Restaurant;
+}
+export interface Photo {
+  id: string; restaurantId: string; originalName: string;
+  mime: string; bytes: number; createdAt: string;
+}
+
 const TOKEN_KEY = "oo:token";
 export const getToken = () => localStorage.getItem(TOKEN_KEY);
 export const setToken = (t: string | null) =>
@@ -99,6 +130,39 @@ export const api = {
     req<Restaurant>("PUT", `/restaurants/${id}/menu`, { items }),
   adjustMenu: (id: string, percent: number) =>
     req<Restaurant>("PATCH", `/restaurants/${id}/menu/adjust`, { percent }),
+
+  parseMenu: (text: string) => req<ParsedMenu>("POST", "/restaurants/parse-menu", { text }),
+  importMenu: (menu: MenuFile, opts: { restaurantId?: string; dryRun?: boolean } = {}) =>
+    req<ImportResult>("POST", "/restaurants/import", { ...menu, ...opts }),
+  exportMenu: (id: string) => req<MenuFile>("GET", `/restaurants/${id}/export`),
+
+  photos: (restaurantId: string) => req<Photo[]>("GET", `/restaurants/${restaurantId}/photos`),
+  deletePhoto: (id: string) => req<{ ok: true }>("DELETE", `/photos/${id}`),
+  uploadPhoto: async (restaurantId: string, file: File): Promise<Photo> => {
+    // Raw bytes, not multipart — that keeps a body-parser dependency out of an
+    // air-gapped deployment. The server checks the magic number regardless.
+    const res = await fetch(`/api/restaurants/${restaurantId}/photos`, {
+      method: "POST",
+      headers: {
+        "content-type": file.type,
+        "X-Filename": encodeURIComponent(file.name).replace(/%20/g, " "),
+        ...(getToken() ? { authorization: `Bearer ${getToken()}` } : {})
+      },
+      body: file
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new ApiError(res.status, (data as any).error || "request_failed");
+    return data as Photo;
+  },
+  /* Photos sit behind auth, so they cannot be used as a plain <img src>.
+     Fetch the bytes and hand back an object URL the caller must revoke. */
+  photoObjectUrl: async (id: string): Promise<string> => {
+    const res = await fetch(`/api/photos/${id}`, {
+      headers: getToken() ? { authorization: `Bearer ${getToken()}` } : {}
+    });
+    if (!res.ok) throw new ApiError(res.status, "photo_failed");
+    return URL.createObjectURL(await res.blob());
+  },
 
   activeSession: () => req<Session | null>("GET", "/sessions/active"),
   sessions: (limit = 20) => req<Session[]>("GET", `/sessions?limit=${limit}`),

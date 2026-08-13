@@ -9,7 +9,7 @@ import { db, uid, setting, setSetting, DB_PATH } from "./db.js";
 import { hash, authRequired } from "./auth.js";
 import { sseHandler } from "./events.js";
 import { authRoutes, userRoutes } from "./routes/users.js";
-import { restaurantRoutes } from "./routes/restaurants.js";
+import { restaurantRoutes, photoRoutes } from "./routes/restaurants.js";
 import { sessionRoutes, orderRoutes, balancesHandler } from "./routes/sessions.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -51,6 +51,7 @@ app.get("/api/stream", sseHandler);
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/restaurants", restaurantRoutes);
+app.use("/api/photos", photoRoutes);
 app.use("/api/sessions", sessionRoutes);
 app.use("/api/orders", orderRoutes);
 app.get("/api/balances", authRequired, balancesHandler);
@@ -68,6 +69,17 @@ if (fs.existsSync(dist)) {
 }
 
 app.use((err, req, res, next) => {
+  // Body-parser rejections are the caller's problem, not a server fault, and
+  // "500 server_error" for an oversized menu photo tells the admin nothing.
+  if (err?.type === "entity.too.large") {
+    return res.status(413).json({ error: "file_too_large" });
+  }
+  if (err?.type === "entity.parse.failed") {
+    return res.status(400).json({ error: "malformed_json" });
+  }
+  if (err?.type === "encoding.unsupported") {
+    return res.status(415).json({ error: "unsupported_image_type" });
+  }
   console.error(err);
   res.status(500).json({ error: "server_error" });
 });

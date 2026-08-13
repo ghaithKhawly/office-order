@@ -124,6 +124,31 @@ const MIGRATIONS = [
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
   );
+  `,
+
+  /*
+   * v2 — menu photos.
+   *
+   * An admin photographs the paper menu and types from it on screen. The file
+   * lives on disk under DATA_DIR/uploads; only its metadata is in the database,
+   * because SQLite is the thing we back up and a few MB of JPEG per restaurant
+   * would bloat every snapshot.
+   *
+   * stored_name is generated server-side. The client's filename is kept only
+   * for display and is never used to build a path.
+   */
+  `
+  CREATE TABLE restaurant_photos (
+    id            TEXT PRIMARY KEY,
+    restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    stored_name   TEXT NOT NULL,
+    original_name TEXT NOT NULL DEFAULT '',
+    mime          TEXT NOT NULL,
+    bytes         INTEGER NOT NULL DEFAULT 0,
+    uploaded_by   TEXT REFERENCES users(id),
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX idx_photos_restaurant ON restaurant_photos(restaurant_id);
   `
 ];
 
