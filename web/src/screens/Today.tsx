@@ -120,6 +120,8 @@ export default function Today({ ctx }: { ctx: Ctx }) {
         </div>
       </Docket>
 
+      {isAdmin ? <MissingOrders ctx={ctx} session={session} /> : null}
+
       {isAdmin && pending.length > 0 ? (
         <Docket className="border-amber-300">
           <Eyebrow right={
@@ -206,6 +208,40 @@ export default function Today({ ctx }: { ctx: Ctx }) {
         </Field>
       </Sheet>
     </div>
+  );
+}
+
+/*
+ * "N people haven't ordered", with the names.
+ *
+ * The count alone is useless — chasing people requires knowing which people.
+ * A rejected order counts as not ordered: that person still has something to
+ * do. Only shown while the session can still take orders.
+ */
+function MissingOrders({ ctx, session }: { ctx: Ctx; session: Session }) {
+  const { t, users } = ctx;
+  if (session.status !== "OPEN") return null;
+
+  const ordered = new Set(
+    session.orders.filter((o) => o.status !== "REJECTED").map((o) => o.userId)
+  );
+  const missing = users.filter((u) => u.active && !ordered.has(u.id));
+  if (missing.length === 0) {
+    return (
+      <Docket className="px-4 py-2.5 flex items-center gap-2 border-emerald-300">
+        <Check size={14} className="text-emerald-600 shrink-0" />
+        <span className="text-sm text-emerald-800">{t.everyoneOrdered}</span>
+      </Docket>
+    );
+  }
+
+  return (
+    <Docket className="border-amber-300">
+      <Eyebrow>{missing.length} {t.notOrderedYet}</Eyebrow>
+      <p className="px-4 pb-3 text-sm text-stone-700 leading-relaxed">
+        {missing.map((u) => u.name).join(ctx.lang === "ar" ? "، " : ", ")}
+      </p>
+    </Docket>
   );
 }
 

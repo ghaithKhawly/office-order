@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-  ChefHat, Receipt, ShoppingBag, Wallet, Settings, Languages, Loader2, WifiOff
+  ChefHat, Receipt, ShoppingBag, Wallet, Settings, Languages, Loader2, WifiOff,
+  Bell, Timer, X
 } from "lucide-react";
 import {
   api, subscribe, getToken, setToken, ApiError,
   type User, type Session, type Restaurant, type Balance
 } from "./api";
 import { DICT, errText, type Lang, type T as Dict } from "./i18n";
+import { useAlerts } from "./alerts";
+import { initNotify } from "./notify";
 import { Btn, Docket, Field, inputCls } from "./ui";
 import Today from "./screens/Today";
 import MenuScreen from "./screens/MenuScreen";
@@ -58,6 +61,8 @@ export default function App() {
     document.documentElement.lang = lang;
     document.documentElement.dir = rtl ? "rtl" : "ltr";
   }, [lang, rtl]);
+
+  useEffect(() => { initNotify(); }, []);
 
   const flash = useCallback((msg: string) => {
     setToast(msg);
@@ -130,6 +135,8 @@ export default function App() {
     return () => { off(); clearInterval(poll); };
   }, [me, reload]);
 
+  const alerts = useAlerts({ session, me, t, clockOffset });
+
   if (booting) {
     return (
       <div className="min-h-full flex items-center justify-center bg-stone-100">
@@ -181,6 +188,27 @@ export default function App() {
       </header>
 
       <main className="max-w-2xl mx-auto px-3 pt-4 pb-28">
+        {alerts.alert ? (
+          <div className={`mb-3 flex items-center justify-between gap-2 text-sm rounded px-3 py-2.5 border ${
+            alerts.alert.urgent
+              ? "text-red-900 bg-red-50 border-red-300"
+              : "text-amber-900 bg-amber-50 border-amber-300"
+          }`}>
+            <span className="flex items-center gap-2 min-w-0">
+              {alerts.alert.urgent ? <Timer size={15} className="shrink-0" /> : <Bell size={15} className="shrink-0" />}
+              <span className="truncate">{alerts.alert.text}</span>
+            </span>
+            <span className="flex items-center gap-1 shrink-0">
+              <Btn size="sm" variant={alerts.alert.urgent ? "primary" : "ghost"}
+                onClick={() => setTab("menu")}>{t.orderNow}</Btn>
+              <button type="button" onClick={alerts.dismiss}
+                className="p-1.5 rounded hover:bg-black/5 text-stone-500" aria-label={t.cancel}>
+                <X size={14} />
+              </button>
+            </span>
+          </div>
+        ) : null}
+
         {down ? (
           <div className="mb-3 flex items-center justify-between gap-2 text-sm text-red-800 bg-red-50 border border-red-200 rounded px-3 py-2.5">
             <span>{t.offline}</span>

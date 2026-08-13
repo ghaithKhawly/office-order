@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!--
+    The docket, as a tab icon: amber card, white receipt, torn bottom edge.
+    Kept in sync by hand with FAVICON_SVG in src/notify.ts, which redraws this
+    on a canvas to composite the unread dot.
+  -->
+  <rect width="32" height="32" rx="7" fill="#fbbf24"/>
+  <path d="M8 7h16v15l-2.7-1.8L18.7 22 16 20.2 13.3 22l-2.6-1.8L8 22z" fill="#fffbeb"/>
+  <rect x="11" y="10.5" width="10" height="2" rx="1" fill="#1c1917"/>
+  <rect x="11" y="14.5" width="7" height="2" rx="1" fill="#57534e"/>
+</svg>

@@ -137,6 +137,42 @@ back with its number and a reason.
 
 ---
 
+## Notifications
+
+Web Push does not exist on this deployment and cannot be made to. It needs a
+service worker, which needs a secure context, which needs a certificate this
+network has no way to obtain. **Measured on the real deployment origin**
+(`http://<lan-ip>:3001`):
+
+```
+isSecureContext        false
+'Notification' in window   true    ← so feature-detecting it is misleading
+Notification.permission    "denied"  ← pre-denied; asking can never grant it
+'serviceWorker' in navigator  false
+```
+
+So the app does three honest things instead, in descending order of reliability:
+
+1. **An in-app banner** for anyone with the app open — when a session is
+   running and you haven't ordered, escalating to red under five minutes. It
+   disappears the moment you order; a reminder you've already acted on is
+   nagging. A rejected order counts as not having ordered.
+2. **A title and favicon badge** while the tab is in the background: `(1)`
+   prefixed to the title and a red dot composited onto the favicon. Both clear
+   the moment you focus the tab, since the banner is right there.
+3. **A desktop notification**, where the browser permits it at all. Offered
+   only when `isSecureContext` is true — on the LAN address Setup explains why
+   it can't work rather than showing a toggle that does nothing. Never relied
+   on, and `new Notification()` is wrapped because it is an illegal constructor
+   on Android without a service worker.
+
+Admins also get **"N people haven't ordered"** with the names on the docket —
+the count alone is useless, chasing people requires knowing which people.
+
+There is no service worker, no manifest, and nothing that imitates push.
+
+---
+
 ## The wall display
 
 Open `/board?token=…` on a screen in the office. Read-only, no login, designed

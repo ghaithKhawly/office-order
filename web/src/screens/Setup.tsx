@@ -2,8 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Plus, Pencil, Trash2, Crown, LogOut, AlertTriangle, KeyRound,
   ClipboardPaste, Upload, Download, ImagePlus, ZoomIn, ZoomOut,
-  Copy, MonitorPlay, RefreshCw
+  Copy, MonitorPlay, RefreshCw, Bell
 } from "lucide-react";
+import { notifyState, askNotifyPermission, type NotifyState } from "../notify";
 import {
   api, type Restaurant, type MenuItem, type ParsedRow, type ParsedMenu, type Photo
 } from "../api";
@@ -110,6 +111,8 @@ export default function SetupScreen({ ctx, onSignOut }: { ctx: Ctx; onSignOut: (
         ) : null}
       </Docket>
 
+      <NotifyPanel ctx={ctx} />
+
       {isAdmin ? <BoardPanel ctx={ctx} /> : null}
 
       {isAdmin ? (
@@ -135,6 +138,49 @@ export default function SetupScreen({ ctx, onSignOut }: { ctx: Ctx; onSignOut: (
 
       <PasswordSheet ctx={ctx} open={pwOpen} onClose={() => setPwOpen(false)} />
     </div>
+  );
+}
+
+/*
+ * Desktop notifications, offered only where they can actually work.
+ *
+ * On the deployment origin (http://<lan-ip>:3001) the page is not a secure
+ * context, so the browser has already denied this before we ask — the
+ * Notification object exists, which makes naive feature detection misleading.
+ * Rather than show a toggle that silently does nothing, this explains the
+ * situation and points at the mechanisms that do work: the in-app banner and
+ * the wall display.
+ */
+function NotifyPanel({ ctx }: { ctx: Ctx }) {
+  const { t, flash } = ctx;
+  const [state, setState] = useState<NotifyState>(() => notifyState());
+
+  const body: Record<NotifyState, string> = {
+    granted: t.notifyOn,
+    denied: t.notifyDenied,
+    insecure: t.notifyInsecure,
+    unsupported: t.notifyUnsupported,
+    default: t.notifyOffer
+  };
+
+  return (
+    <Docket className="px-4 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-sm font-medium mb-0.5 flex items-center gap-1.5">
+            <Bell size={14} className="text-stone-400" />{t.notifications}
+          </div>
+          <p className="text-[11px] text-stone-500 leading-relaxed">{body[state]}</p>
+        </div>
+        {state === "default" ? (
+          <Btn size="sm" onClick={async () => {
+            const next = await askNotifyPermission();
+            setState(next);
+            flash(next === "granted" ? t.notifyOn : t.notifyDenied);
+          }}>{t.enable}</Btn>
+        ) : null}
+      </div>
+    </Docket>
   );
 }
 

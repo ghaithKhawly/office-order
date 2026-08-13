@@ -6,6 +6,17 @@
     <meta name="theme-color" content="#f5f5f4" />
     <title>طلبية المكتب</title>
     <!--
+      Vendored, like everything else. src/notify.ts replaces this with a canvas
+      rendering of the same mark so it can composite an unread dot; this covers
+      the moment before the bundle runs.
+
+      Note there is deliberately no web app manifest here. The LAN is HTTP, so
+      the page is never a secure context: a manifest would advertise an install
+      that cannot work, and installability implies a service worker we cannot
+      have. See "Air-gap rules" in README.md.
+    -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!--
       Fonts are vendored, not fetched. See the @font-face block at the top of
       src/index.css and the .woff2 files in public/fonts/. This app runs on a
       LAN with no internet: a stylesheet <link> to a font CDN here hangs the
