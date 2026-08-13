@@ -31,7 +31,11 @@ export interface Totals {
 export interface Session {
   id: string; status: SessionStatus; orderDate: string;
   deliveryFee: number; splitMode: "EQUAL" | "PROPORTIONAL";
-  roundingStep: number; cashStep: number; cutoffAt: string | null; notes: string;
+  roundingStep: number; cashStep: number; notes: string;
+  /* ISO 8601 UTC, unlike orderDate which is bare SQL. */
+  cutoffAt: string | null;
+  /* The server's clock at the moment this was built; used to correct the countdown. */
+  serverNow: string;
   payerId: string; payerName: string;
   restaurant: { id: string; name: string; phone: string; minOrder: number } | null;
   orders: Order[];
@@ -169,12 +173,14 @@ export const api = {
   createSession: (b: {
     restaurantId: string; deliveryFee: number;
     splitMode: "EQUAL" | "PROPORTIONAL"; payerId: string;
-    roundingStep: number; cashStep: number;
+    roundingStep: number; cashStep: number; cutoffAt?: string | null;
   }) => req<Session>("POST", "/sessions", b),
   updateSession: (id: string, b: Partial<{
     status: SessionStatus; deliveryFee: number;
     splitMode: "EQUAL" | "PROPORTIONAL"; payerId: string;
     roundingStep: number; cashStep: number;
+    /* null clears the cutoff; omitting the key leaves it untouched. */
+    cutoffAt: string | null;
   }>) => req<Session>("PATCH", `/sessions/${id}`, b),
   deleteSession: (id: string) => req<{ ok: true }>("DELETE", `/sessions/${id}`),
 

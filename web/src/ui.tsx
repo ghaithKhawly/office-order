@@ -1,5 +1,5 @@
-import { ReactNode } from "react";
-import { X } from "lucide-react";
+import { ReactNode, useEffect, useRef, useState } from "react";
+import { X, Timer } from "lucide-react";
 import type { OrderStatus } from "./api";
 import type { T } from "./i18n";
 
@@ -119,6 +119,62 @@ export function Stamp({ status, t }: { status: OrderStatus; t: T }) {
   return (
     <span className={`text-[10px] uppercase tracking-widest font-bold border rounded px-1.5 py-0.5 shrink-0 ${map[status]}`}>
       {label}
+    </span>
+  );
+}
+
+/**
+ * Live countdown to the cutoff.
+ *
+ * `offsetMs` corrects for the phone's clock: the server is the thing that
+ * actually locks the session, so the number on screen has to agree with the
+ * server rather than with a handset that is four minutes fast.
+ *
+ * Goes visually urgent under five minutes, and calls `onExpire` once when it
+ * reaches zero so the caller can refetch — the auto-lock job runs on its own
+ * schedule, and without this the docket would sit at 00:00 looking stuck.
+ */
+export function Countdown({ target, offsetMs = 0, onExpire, className = "" }: {
+  target: string;
+  offsetMs?: number;
+  onExpire?: () => void;
+  className?: string;
+}) {
+  const [left, setLeft] = useState(() => Date.parse(target) - (Date.now() + offsetMs));
+  const fired = useRef(false);
+
+  useEffect(() => {
+    fired.current = false;
+    const tick = () => {
+      const ms = Date.parse(target) - (Date.now() + offsetMs);
+      setLeft(ms);
+      if (ms <= 0 && !fired.current) {
+        fired.current = true;
+        onExpire?.();
+      }
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [target, offsetMs, onExpire]);
+
+  const done = left <= 0;
+  const urgent = !done && left < 5 * 60_000;
+
+  const total = Math.max(0, Math.floor(left / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const text = h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+
+  return (
+    <span dir="ltr"
+      className={`inline-flex items-center gap-1 font-mono tabular-nums ${
+        done ? "text-stone-400" : urgent ? "text-red-600 font-bold" : "text-stone-700"
+      } ${urgent ? "animate-pulse" : ""} ${className}`}>
+      <Timer size={13} className="shrink-0" />
+      {text}
     </span>
   );
 }

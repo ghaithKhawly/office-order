@@ -77,6 +77,12 @@ export const DICT = {
     err_version_too_new: "الملف من إصدار أحدث من البرنامج",
     err_restaurant_name_required: "اسم المطعم ناقص بالملف",
     err_malformed_json: "الملف مو JSON صحيح",
+    cutoff: "وقت الإقفال", cutoffNone: "بدون وقت إقفال",
+    cutoffSet: "حدد وقت الإقفال", cutoffEdit: "تعديل الوقت",
+    cutoffClear: "إلغاء التوقيت", closesIn: "بيسكّر بعد",
+    cutoffPassed: "انتهى الوقت", autoLocked: "انقفلت تلقائيًا بعد انتهاء الوقت",
+    plus30: "+٣٠ دقيقة", plus1h: "+ساعة",
+    err_bad_cutoff: "وقت الإقفال مو صحيح",
     err_text_required: "الصق النص أول",
     err_generic: "صار خطأ، جرّب مرة تانية"
   },
@@ -158,6 +164,12 @@ export const DICT = {
     err_version_too_new: "That file is from a newer version of the app",
     err_restaurant_name_required: "The file has no restaurant name",
     err_malformed_json: "That file is not valid JSON",
+    cutoff: "Cutoff time", cutoffNone: "No cutoff",
+    cutoffSet: "Set a cutoff", cutoffEdit: "Change",
+    cutoffClear: "Clear", closesIn: "Closes in",
+    cutoffPassed: "Time is up", autoLocked: "Locked automatically at the cutoff",
+    plus30: "+30 min", plus1h: "+1 hour",
+    err_bad_cutoff: "That cutoff time is not valid",
     err_text_required: "Paste some text first",
     err_generic: "Something went wrong"
   }

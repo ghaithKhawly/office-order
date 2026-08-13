@@ -11,6 +11,7 @@ import { sseHandler } from "./events.js";
 import { authRoutes, userRoutes } from "./routes/users.js";
 import { restaurantRoutes, photoRoutes } from "./routes/restaurants.js";
 import { sessionRoutes, orderRoutes, balancesHandler } from "./routes/sessions.js";
+import { startCutoffJob } from "./cutoff.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3001);
@@ -87,6 +88,7 @@ app.use((err, req, res, next) => {
 const server = app.listen(PORT, "0.0.0.0", () => {
   console.log(`[boot] API on http://localhost:${PORT}  (LAN: http://<your-ip>:${PORT})`);
   console.log(`[boot] database: ${DB_PATH}`);
+  startCutoffJob();
 });
 
 /*

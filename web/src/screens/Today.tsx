@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Plus, Check, X, Store, Users, Truck, Lock, Unlock, Send, Ban,
   ChefHat, AlertTriangle, Receipt, CircleDollarSign, History, ChevronDown, ChevronUp
@@ -6,7 +6,7 @@ import {
 import { api, type Session } from "../api";
 import type { Ctx } from "../App";
 import {
-  Btn, Docket, Eyebrow, Field, Line, Money, Sheet, Stamp, Tear, inputCls, CopyBlock
+  Btn, Countdown, Docket, Eyebrow, Field, Line, Money, Sheet, Stamp, Tear, inputCls, CopyBlock
 } from "../ui";
 
 export default function Today({ ctx }: { ctx: Ctx }) {
@@ -15,6 +15,7 @@ export default function Today({ ctx }: { ctx: Ctx }) {
   const [sheetText, setSheetText] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState<string | null>(null);
   const [reason, setReason] = useState("");
+  const [cutoffOpen, setCutoffOpen] = useState(false);
 
   async function openSheet() {
     if (!session) return;
@@ -84,6 +85,9 @@ export default function Today({ ctx }: { ctx: Ctx }) {
             {session.splitMode === "EQUAL" ? t.equal : t.proportional}</span>
           <span className="flex items-center gap-1.5 truncate"><CircleDollarSign size={13} />{session.payerName}</span>
         </div>
+
+        <CutoffRow ctx={ctx} session={session} onEdit={() => setCutoffOpen(true)} />
+
         <Tear />
 
         <div className="py-2">
@@ -187,6 +191,8 @@ export default function Today({ ctx }: { ctx: Ctx }) {
         {sheetText !== null ? <CopyBlock text={sheetText} t={t} flash={flash} /> : null}
       </Sheet>
 
+      <CutoffSheet ctx={ctx} session={session} open={cutoffOpen} onClose={() => setCutoffOpen(false)} />
+
       <Sheet open={!!rejecting} onClose={() => setRejecting(null)} title={t.reject}
         footer={
           <Btn variant="primary" size="lg" disabled={!reason.trim()}
@@ -200,6 +206,121 @@ export default function Today({ ctx }: { ctx: Ctx }) {
         </Field>
       </Sheet>
     </div>
+  );
+}
+
+/*
+ * The cutoff line on the docket.
+ *
+ * Only shown while it still means something: once a session is placed or
+ * settled the deadline is history, and a stale countdown on a finished order
+ * is just noise.
+ */
+function CutoffRow({ ctx, session, onEdit }: { ctx: Ctx; session: Session; onEdit: () => void }) {
+  const { t, isAdmin, clockOffset, reload } = ctx;
+  const live = session.status === "OPEN" || session.status === "LOCKED";
+  if (!live) return null;
+
+  // When the countdown hits zero the server still has up to one job interval
+  // to notice. Refetch a moment later so the docket flips to LOCKED by itself.
+  const onExpire = useCallback(() => {
+    const id = setTimeout(() => { void reload(); }, 2000);
+    return () => clearTimeout(id);
+  }, [reload]);
+
+  if (!session.cutoffAt) {
+    return isAdmin ? (
+      <div className="px-4 pb-2.5 -mt-1">
+        <button type="button" onClick={onEdit}
+          className="text-[11px] text-stone-400 hover:text-stone-700 underline">
+          {t.cutoffSet}
+        </button>
+      </div>
+    ) : null;
+  }
+
+  const past = Date.parse(session.cutoffAt) <= Date.now() + clockOffset;
+
+  return (
+    <div className="px-4 pb-2.5 -mt-1 flex items-center justify-between gap-2">
+      <span className="flex items-center gap-1.5 text-xs text-stone-500">
+        {session.status === "LOCKED" && past ? (
+          <>
+            <Lock size={13} className="text-stone-400" />
+            <span className="text-[11px]">{t.autoLocked}</span>
+          </>
+        ) : (
+          <>
+            <span className="text-[11px] uppercase tracking-widest text-stone-400">{t.closesIn}</span>
+            <Countdown target={session.cutoffAt} offsetMs={clockOffset} onExpire={onExpire} />
+          </>
+        )}
+      </span>
+      {isAdmin ? (
+        <button type="button" onClick={onEdit}
+          className="text-[11px] text-stone-400 hover:text-stone-700 underline shrink-0">
+          {t.cutoffEdit}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+/* Setting a time on a phone is fiddly, so the two cases that actually happen —
+   "half an hour" and "an hour" — are one tap each. */
+function CutoffSheet({ ctx, session, open, onClose }: {
+  ctx: Ctx; session: Session; open: boolean; onClose: () => void;
+}) {
+  const { t, run, clockOffset } = ctx;
+
+  const toLocalInput = (iso: string | null) => {
+    const d = iso ? new Date(iso) : new Date(Date.now() + clockOffset + 3600_000);
+    // datetime-local wants local wall-clock time, not UTC.
+    const off = d.getTimezoneOffset() * 60000;
+    return new Date(d.getTime() - off).toISOString().slice(0, 16);
+  };
+
+  const [value, setValue] = useState(() => toLocalInput(session.cutoffAt));
+  useEffect(() => { if (open) setValue(toLocalInput(session.cutoffAt)); }, [open, session.cutoffAt]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const quick = (mins: number) => {
+    const d = new Date(Date.now() + clockOffset + mins * 60000);
+    const off = d.getTimezoneOffset() * 60000;
+    setValue(new Date(d.getTime() - off).toISOString().slice(0, 16));
+  };
+
+  return (
+    <Sheet open={open} onClose={onClose} title={t.cutoff}
+      footer={
+        <div className="flex gap-2">
+          <Btn variant="primary" size="lg"
+            onClick={async () => {
+              const iso = value ? new Date(value).toISOString() : null;
+              const r = await run(() => api.updateSession(session.id, { cutoffAt: iso }));
+              if (r) onClose();
+            }}>{t.save}</Btn>
+          {session.cutoffAt ? (
+            <Btn onClick={async () => {
+              const r = await run(() => api.updateSession(session.id, { cutoffAt: null }));
+              if (r) onClose();
+            }}>{t.cutoffClear}</Btn>
+          ) : null}
+        </div>
+      }>
+      <div className="flex gap-2 mb-3">
+        <Btn size="sm" onClick={() => quick(30)}>{t.plus30}</Btn>
+        <Btn size="sm" onClick={() => quick(60)}>{t.plus1h}</Btn>
+      </div>
+      <Field label={t.cutoff}>
+        <input type="datetime-local" className={inputCls} dir="ltr"
+          value={value} onChange={(e) => setValue(e.target.value)} />
+      </Field>
+      <p className="text-[11px] text-stone-400 leading-relaxed">
+        {ctx.lang === "ar"
+          ? "الجلسة بتنقفل تلقائيًا بهالوقت. المسؤول فيه يعيد فتحها بعدين."
+          : "The session locks itself at this time. An admin can still reopen it afterwards."}
+      </p>
+    </Sheet>
   );
 }
 
@@ -250,6 +371,7 @@ function NewSession({ ctx, open, onClose }: { ctx: Ctx; open: boolean; onClose: 
   const [payerId, setPayer] = useState(me.id);
   const [step, setStep] = useState("100");
   const [cashStep, setCash] = useState("0");
+  const [cutoff, setCutoff] = useState("");
 
   useEffect(() => {
     if (open && restaurants.length && !restaurantId) {
@@ -262,7 +384,8 @@ function NewSession({ ctx, open, onClose }: { ctx: Ctx; open: boolean; onClose: 
     if (!restaurantId) return;
     const r = await run(() => api.createSession({
       restaurantId, deliveryFee: Number(fee) || 0, splitMode, payerId,
-      roundingStep: Number(step) || 100, cashStep: Number(cashStep) || 0
+      roundingStep: Number(step) || 100, cashStep: Number(cashStep) || 0,
+      cutoffAt: cutoff ? new Date(cutoff).toISOString() : null
     }));
     if (r) onClose();
   }
@@ -316,6 +439,22 @@ function NewSession({ ctx, open, onClose }: { ctx: Ctx; open: boolean; onClose: 
               </select>
             </Field>
           </div>
+          <Field label={`${t.cutoff} — ${t.cutoffNone}`}>
+            <div className="flex gap-2 mb-2">
+              <Btn size="sm" onClick={() => {
+                const d = new Date(Date.now() + 30 * 60000);
+                setCutoff(new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16));
+              }}>{t.plus30}</Btn>
+              <Btn size="sm" onClick={() => {
+                const d = new Date(Date.now() + 60 * 60000);
+                setCutoff(new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16));
+              }}>{t.plus1h}</Btn>
+              {cutoff ? <Btn size="sm" onClick={() => setCutoff("")}>{t.cutoffClear}</Btn> : null}
+            </div>
+            <input type="datetime-local" className={inputCls} dir="ltr"
+              value={cutoff} onChange={(e) => setCutoff(e.target.value)} />
+          </Field>
+
           <p className="text-[11px] text-stone-400 leading-relaxed">
             {lang === "ar"
               ? "الحصص بتنحسب بطريقة أكبر باقي: مجموع الحصص بيساوي أجرة التوصيل بالضبط."

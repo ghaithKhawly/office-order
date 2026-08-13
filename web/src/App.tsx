@@ -23,6 +23,8 @@ export interface Ctx {
   restaurants: Restaurant[];
   users: User[];
   balances: Balance[];
+  /* server clock minus this device's clock, in ms. See reload(). */
+  clockOffset: number;
   reload: () => Promise<void>;
   flash: (msg: string) => void;
   run: <R>(fn: () => Promise<R>) => Promise<R | undefined>;
@@ -45,6 +47,7 @@ export default function App() {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [balances, setBalances] = useState<Balance[]>([]);
+  const [clockOffset, setClockOffset] = useState(0);
 
   const t = DICT[lang];
   const rtl = lang === "ar";
@@ -72,6 +75,12 @@ export default function App() {
       setBalances(b);
       setCur(st.currency);
       setDown(false);
+      /*
+       * Office phones drift, and some are set to the wrong timezone entirely.
+       * The cutoff countdown has to match the server that does the locking, so
+       * every refresh re-measures the difference between the two clocks.
+       */
+      if (s?.serverNow) setClockOffset(Date.parse(s.serverNow) - Date.now());
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) setMe(null);
       else setDown(true);
@@ -140,7 +149,7 @@ export default function App() {
 
   const ctx: Ctx = {
     t, lang, cur, me, isAdmin: me.role === "ADMIN",
-    session, restaurants, users, balances,
+    session, restaurants, users, balances, clockOffset,
     reload, flash, run, goto: setTab
   };
 

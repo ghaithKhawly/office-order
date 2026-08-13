@@ -196,6 +196,22 @@ day-to-day, with a `trusted` flag per person so admins only review new people.
 invalid transitions rejected by the API. You can't mark a session placed with
 zero approved orders, and you can't add items after it locks.
 
+**The cutoff locks the session by itself.** Set a time when you start a session
+(or change it later from the docket) and a job flips `OPEN → LOCKED` when it
+passes, writes `session.auto_lock` to `audit_log` with no actor, and pushes the
+change to every connected client over SSE. It only ever performs that one
+transition, with a conditional `UPDATE ... WHERE status = 'OPEN'`, so a session
+an admin already moved on is never dragged backwards.
+
+An admin can still reopen afterwards. **Reopening clears a cutoff that has
+already passed** — otherwise the job would re-lock the session within seconds
+and the admin would be fighting a timer they can't see. Set a new one if you
+want the deadline back.
+
+Timestamps go to the client as ISO 8601 alongside `serverNow`, so the countdown
+tracks the server's clock rather than the phone's. Office handsets drift, and
+some are on the wrong timezone entirely.
+
 **Everything mutating is audited.** `audit_log` records actor, action, entity,
 and payload for approvals, rejections, status changes, and menu edits.
 

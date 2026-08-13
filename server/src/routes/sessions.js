@@ -3,6 +3,7 @@ import { db, uid, audit } from "../db.js";
 import { authRequired, adminRequired } from "../auth.js";
 import { broadcast } from "../events.js";
 import { computeSession } from "../calc.js";
+import { toSqlUtc, isPast } from "../cutoff.js";
 
 export const sessionRoutes = Router();
 export const orderRoutes = Router();
@@ -60,6 +61,9 @@ function loadOrders(sessionId) {
   }));
 }
 
+/* SQLite stores UTC without a marker; the client should never have to guess. */
+const sqlToIso = (v) => (v ? new Date(v.replace(" ", "T") + "Z").toISOString() : null);
+
 function fullSession(id) {
   const s = db.prepare("SELECT * FROM sessions WHERE id = ?").get(id);
   if (!s) return null;
@@ -75,7 +79,16 @@ function fullSession(id) {
     splitMode: s.split_mode,
     roundingStep: s.rounding_step,
     cashStep: s.cash_step,
-    cutoffAt: s.cutoff_at,
+    /*
+     * Sent as unambiguous ISO 8601, unlike the older bare-SQL fields the client
+     * has to append "Z" to. The countdown is worth being exact about.
+     *
+     * serverNow rides along so the client can correct for a phone whose clock
+     * is off: the countdown has to agree with the server that is doing the
+     * locking, not with the handset.
+     */
+    cutoffAt: sqlToIso(s.cutoff_at),
+    serverNow: new Date().toISOString(),
     notes: s.notes,
     payerId: s.payer_id,
     payerName: payer ? payer.name : "",
@@ -151,7 +164,7 @@ sessionRoutes.post("/", adminRequired, (req, res) => {
     splitMode === "PROPORTIONAL" ? "PROPORTIONAL" : "EQUAL",
     Math.max(1, int(roundingStep, 100) || 100),
     int(cashStep, 0),
-    cutoffAt || null
+    toSqlUtc(cutoffAt)
   );
 
   audit(req.user.id, "session.create", "session", id, { restaurant: r.name });
@@ -171,7 +184,8 @@ sessionRoutes.patch("/:id", adminRequired, (req, res) => {
   const s = db.prepare("SELECT * FROM sessions WHERE id=?").get(req.params.id);
   if (!s) return res.status(404).json({ error: "not_found" });
 
-  const { status, deliveryFee, splitMode, payerId, roundingStep, cashStep } = req.body || {};
+  const { status, deliveryFee, splitMode, payerId, roundingStep, cashStep, cutoffAt } =
+    req.body || {};
 
   if (status && status !== s.status) {
     if (!FLOW[s.status].includes(status)) {
@@ -185,6 +199,34 @@ sessionRoutes.patch("/:id", adminRequired, (req, res) => {
     }
   }
 
+  /*
+   * cutoffAt is tri-state, so it cannot ride along with the COALESCE pattern
+   * the other fields use: absent means "leave it", null means "clear it", a
+   * timestamp means "set it".
+   */
+  let nextCutoff = s.cutoff_at;
+  if ("cutoffAt" in (req.body || {})) {
+    if (cutoffAt === null || cutoffAt === "") {
+      nextCutoff = null;
+    } else {
+      const parsed = toSqlUtc(cutoffAt);
+      if (!parsed) return res.status(400).json({ error: "bad_cutoff" });
+      nextCutoff = parsed;
+    }
+  }
+
+  /*
+   * Reopening after an auto-lock: if the cutoff is still in the past, the job
+   * would lock the session again within seconds and the admin would be stuck
+   * fighting a timer they cannot see. Reopening means the deadline no longer
+   * applies, so it is cleared — they can set a new one if they want.
+   */
+  let clearedStaleCutoff = false;
+  if (status === "OPEN" && s.status === "LOCKED" && isPast(nextCutoff)) {
+    nextCutoff = null;
+    clearedStaleCutoff = true;
+  }
+
   db.prepare(
     `UPDATE sessions SET
        status = COALESCE(?, status),
@@ -192,7 +234,8 @@ sessionRoutes.patch("/:id", adminRequired, (req, res) => {
        split_mode = COALESCE(?, split_mode),
        payer_id = COALESCE(?, payer_id),
        rounding_step = COALESCE(?, rounding_step),
-       cash_step = COALESCE(?, cash_step)
+       cash_step = COALESCE(?, cash_step),
+       cutoff_at = ?
      WHERE id = ?`
   ).run(
     status || null,
@@ -201,10 +244,15 @@ sessionRoutes.patch("/:id", adminRequired, (req, res) => {
     payerId || null,
     roundingStep != null ? Math.max(1, int(roundingStep, 100)) : null,
     cashStep != null ? int(cashStep) : null,
+    nextCutoff,
     s.id
   );
 
-  audit(req.user.id, "session.update", "session", s.id, { status, deliveryFee, splitMode });
+  audit(req.user.id, "session.update", "session", s.id, {
+    status, deliveryFee, splitMode,
+    ...("cutoffAt" in (req.body || {}) ? { cutoffAt: nextCutoff } : {}),
+    ...(clearedStaleCutoff ? { clearedStaleCutoff: true } : {})
+  });
   broadcast("session");
   res.json(fullSession(s.id));
 });
