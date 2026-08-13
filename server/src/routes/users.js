@@ -1,4 +1,5 @@
 import { Router } from "express";
+import rateLimit from "express-rate-limit";
 import { db, uid, audit } from "../db.js";
 import {
   hash, verify, sign, publicUser, authRequired, adminRequired
@@ -10,7 +11,26 @@ export const userRoutes = Router();
 
 /* ---------------- auth ---------------- */
 
-authRoutes.post("/login", (req, res) => {
+/*
+ * Deliberately generous. This is a trusted office LAN behind its own router,
+ * not the open internet — the threat model is a bored colleague trying to
+ * guess a coworker's password, not a botnet. 20 attempts per 15 minutes per IP
+ * stops that cold while leaving room for someone genuinely fat-fingering a
+ * password on a phone keyboard. Successful logins don't count against it.
+ *
+ * Note: everyone on the LAN comes from a distinct IP, so this is per-person in
+ * practice. There is no proxy in front of the app, so no trust proxy setting.
+ */
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  skipSuccessfulRequests: true,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "too_many_attempts" }
+});
+
+authRoutes.post("/login", loginLimiter, (req, res) => {
   const { username, password } = req.body || {};
   if (!username || !password) {
     return res.status(400).json({ error: "username_and_password_required" });

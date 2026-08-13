@@ -72,7 +72,39 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: "server_error" });
 });
 
-app.listen(PORT, "0.0.0.0", () => {
+const server = app.listen(PORT, "0.0.0.0", () => {
   console.log(`[boot] API on http://localhost:${PORT}  (LAN: http://<your-ip>:${PORT})`);
   console.log(`[boot] database: ${DB_PATH}`);
+});
+
+/*
+ * A raw EADDRINUSE stack trace looks like a broken install to whoever is
+ * standing at the machine, and there is no internet to search it from. Say
+ * what happened and what to do instead.
+ */
+server.on("error", (err) => {
+  if (err.code === "EADDRINUSE") {
+    console.error(`
+[boot] FAILED — port ${PORT} is already in use.
+
+Something is already listening on ${PORT}. Usually that means the app is
+already running, either in another window or as the Windows service.
+
+  Is the service running?   nssm status OfficeOrder
+  What is using the port?   netstat -ano | findstr :${PORT}
+  Stop that process:        taskkill /PID <the-pid-from-above> /F
+
+Or set a different port in server/.env (PORT=3002) and update the firewall
+rule and the QR code to match.
+`);
+  } else if (err.code === "EACCES") {
+    console.error(`
+[boot] FAILED — not allowed to bind port ${PORT}.
+
+Run as a user with permission, or pick a port above 1024 in server/.env.
+`);
+  } else {
+    console.error("[boot] FAILED —", err);
+  }
+  process.exit(1);
 });

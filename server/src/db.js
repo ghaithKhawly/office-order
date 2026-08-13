@@ -4,7 +4,16 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "..", "data");
+
+/*
+ * Resolved to an absolute path deliberately. A relative DATA_DIR (or one set
+ * in a .bat file that starts the app from C:\Windows\System32, which is where
+ * a Windows service starts by default) would otherwise put the database
+ * somewhere nobody can find and silently create a second, empty one.
+ */
+export const DATA_DIR = path.resolve(
+  process.env.DATA_DIR || path.join(__dirname, "..", "data")
+);
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
 export const DB_PATH = path.join(DATA_DIR, "app.db");

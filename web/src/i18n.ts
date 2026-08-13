@@ -56,6 +56,7 @@ export const DICT = {
     err_username_taken: "اسم المستخدم محجوز",
     err_restaurant_in_active_session: "المطعم مستخدم بجلسة شغالة",
     err_wrong_current_password: "كلمة السر الحالية غلط",
+    err_too_many_attempts: "محاولات كتير، استنى شوي وجرّب بعدين",
     err_generic: "صار خطأ، جرّب مرة تانية"
   },
   en: {
@@ -115,6 +116,7 @@ export const DICT = {
     err_username_taken: "Username is taken",
     err_restaurant_in_active_session: "Restaurant is used by a live session",
     err_wrong_current_password: "Current password is wrong",
+    err_too_many_attempts: "Too many attempts — wait a few minutes",
     err_generic: "Something went wrong"
   }
 } as const;

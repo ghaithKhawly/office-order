@@ -5,9 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f5f5f4" />
     <title>طلبية المكتب</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <!--
+      Fonts are vendored, not fetched. See the @font-face block at the top of
+      src/index.css and the .woff2 files in public/fonts/. This app runs on a
+      LAN with no internet: a stylesheet <link> to a font CDN here hangs the
+      request and drops Arabic to a system fallback.
+    -->
   </head>
   <body class="bg-stone-100">
     <div id="root"></div>

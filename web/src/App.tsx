@@ -232,7 +232,11 @@ function Login({ t, lang, setLang, onIn }: {
       setToken(token);
       await onIn(user);
     } catch (e) {
-      setErr(e instanceof ApiError && e.status === 401 ? t.badCreds : t.offline);
+      // 401 is the everyday case. Anything else that came back *as an API
+      // error* still reached the server, so show what it actually said —
+      // "too many attempts" must not read as "the server is down".
+      if (e instanceof ApiError) setErr(e.status === 401 ? t.badCreds : errText(t, e.code));
+      else setErr(t.offline);
     } finally {
       setBusy(false);
     }

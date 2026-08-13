@@ -3,12 +3,19 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Group food ordering for an office. Express + SQLite + React.",
+  "description": "Group food ordering for an office. Express + SQLite + React. Runs air-gapped on a Windows LAN.",
+  "engines": {
+    "node": ">=22.0.0 <23"
+  },
   "scripts": {
-    "postinstall": "npm install --prefix server && npm install --prefix web",
-    "dev": "concurrently -n api,web -c yellow,cyan \"npm run dev --prefix server\" \"npm run dev --prefix web\"",
-    "build": "npm run build --prefix web",
+    "postinstall": "node scripts/install-all.mjs",
+    "dev": "concurrently -n api,web -c yellow,cyan npm:dev:api npm:dev:web",
+    "dev:api": "npm run dev --prefix server",
+    "dev:web": "npm run dev --prefix web",
+    "build": "npm run build --prefix web && node scripts/check-offline.mjs",
+    "check:offline": "npm run build",
     "start": "npm start --prefix server",
+    "test": "node --test server/test/",
     "reset-db": "node server/src/reset.js"
   },
   "devDependencies": {

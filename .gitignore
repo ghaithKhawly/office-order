@@ -4,3 +4,7 @@ server/data/
 .env
 *.log
 .DS_Store
+
+# Incremental TypeScript build state. Machine-specific, regenerated on every
+# build, and it was being committed.
+*.tsbuildinfo

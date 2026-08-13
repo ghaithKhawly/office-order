@@ -8,9 +8,22 @@ Arabic-first with full RTL, English toggle.
 
 **Stack:** Express + SQLite (better-sqlite3) · React + TypeScript + Vite + Tailwind · JWT auth · SSE for live updates.
 
+> **This app runs air-gapped.** It is deployed to a Windows machine on a closed
+> office LAN with no internet: no CDN, no npm registry, no certificate
+> authority, no cloud backup. Everything the browser needs ships with the app.
+> Before changing anything, read **[Air-gap rules](#air-gap-rules)** —
+> a single `<link>` to a font CDN is enough to break Arabic on the target
+> machine, and nobody on site can diagnose it.
+>
+> Windows deployment lives in **[DEPLOY-WINDOWS.md](DEPLOY-WINDOWS.md)**.
+
 ---
 
 ## Run it
+
+Node **22** is required — see `.nvmrc`. `better-sqlite3` ships a prebuilt
+binary per Node ABI, so a different major version means it has to compile from
+source, and the offline machine has no compiler. This is not a soft preference.
 
 ```bash
 npm install          # installs root, server, and web
@@ -27,7 +40,7 @@ Sign in with the bootstrap admin (`admin` / `admin123` unless you changed
 ### Production / office LAN
 
 ```bash
-npm run build        # builds the frontend
+npm run build        # builds the frontend, then verifies it is offline-clean
 npm start            # one process serves API + frontend on :3001
 ```
 
@@ -70,6 +83,48 @@ rather than quietly disappearing.
 The person set as **payer** fronts the cash. Everyone else's due becomes a debt
 to them, tracked on the **Money** tab as a running balance across sessions so
 people can settle weekly instead of daily.
+
+---
+
+## Air-gap rules
+
+The deployment target is a Windows box on a closed LAN. These are not style
+preferences — each one is a way the app has broken or would break there.
+
+**1. Zero network calls at runtime.** No CDN, no external API, no analytics, no
+telemetry. A request to the internet does not fail fast on that network, it
+*hangs*: the page half-renders and Arabic silently falls back to a system font.
+
+`npm run build` runs `scripts/check-offline.mjs`, which scans `web/dist` for
+absolute URLs, protocol-relative URLs, and known CDN hostnames, and fails the
+build if it finds one. Run it alone with:
+
+```bash
+npm run check:offline
+```
+
+The only permitted exceptions are listed in `ALLOWED_URLS` in that script —
+currently XML namespace URIs (`http://www.w3.org/2000/svg`, which the DOM never
+dereferences) and React's error-decoder link (message text, not a request).
+Each has a written justification. If you need to add one, confirm the browser
+genuinely does not fetch it.
+
+**Fonts are vendored.** Tajawal (400/500/700, Arabic + Latin) and IBM Plex Mono
+(400/500, Latin) live in `web/public/fonts/` as `.woff2`, declared with local
+`@font-face` rules at the top of `web/src/index.css` with `font-display: swap`.
+The `unicode-range` values are kept from the original Google CSS, so the
+browser still only downloads the subset a given glyph needs. Total ~87 KB.
+
+**2. HTTP only, so no service worker, no PWA, no Web Push.** All three require a
+secure context, which needs a certificate, which needs a CA the office machines
+trust. Don't add a manifest that implies installability. Notifications are
+in-app only.
+
+**3. New dependencies must be pure JS.** They have to install on a Windows x64
+machine that has internet *once*, then run forever offline. Native addons other
+than `better-sqlite3` mean a compiler on the target machine, which there isn't.
+
+**4. Node 22, pinned.** `engines` in `package.json` and `.nvmrc`. See above.
 
 ---
 
@@ -155,8 +210,12 @@ recreates it with the bootstrap admin).
 
 ## Known limits
 
-- HTTP, not HTTPS. Fine on a trusted office LAN; put it behind Caddy or nginx
-  with a certificate if you expose it to the internet.
+- HTTP, not HTTPS. Required on this LAN — there is no CA to issue a certificate
+  the office phones would trust. This is why there is no service worker or Web
+  Push (both need a secure context).
 - SQLite handles one writer at a time. At office scale (tens of people) this is
   a non-issue; `busy_timeout` is set to 5s.
-- No rate limiting on login. Add `express-rate-limit` before exposing it publicly.
+- Login is rate limited to 20 failed attempts per 15 minutes per IP. Successful
+  logins don't count against it. **If someone locks themselves out**, the limiter
+  is in-memory: restarting the app clears it immediately, or they can wait 15
+  minutes.
