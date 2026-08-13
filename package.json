@@ -1,0 +1,17 @@
+{
+  "name": "office-order",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Group food ordering for an office. Express + SQLite + React.",
+  "scripts": {
+    "postinstall": "npm install --prefix server && npm install --prefix web",
+    "dev": "concurrently -n api,web -c yellow,cyan \"npm run dev --prefix server\" \"npm run dev --prefix web\"",
+    "build": "npm run build --prefix web",
+    "start": "npm start --prefix server",
+    "reset-db": "node server/src/reset.js"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
